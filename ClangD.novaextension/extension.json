@@ -1,0 +1,72 @@
+{
+  "identifier": "tech.staysail.ClangD",
+  "name": "ClangD Language Server",
+  "organization": "Staysail Systems",
+  "description": "C and C++ support via ClangD",
+  "version": "0.5",
+  "categories": ["languages", "formatters", "completions", "issues"],
+  "license": "MIT",
+  "repository": "https://github.com/staysail/nova-clangd",
+  "bugs": "https://github.com/staysail/nova-cland/issues",
+
+  "main": "main.js",
+
+  "entitlements": {
+    "process": true,
+    "filesystem": "readonly"
+  },
+
+  "commands": {
+    "editor": [
+      {
+        "title": "Format C/C++ File",
+        "command": "staysail.clangd.format",
+        "shortcut": "opt-shift-f",
+        "filters": {
+          "syntaxes": ["c", "cpp"]
+        }
+      }
+    ]
+  },
+
+  "config": [
+    {
+      "key": "staysail.clangd-path",
+      "title": "clangd Path",
+      "type": "path",
+      "placeholder": "/usr/bin/clangd"
+    },
+    {
+      "key": "staysail.clangd-cc-path",
+      "title": "Path to compile-commands.json directory",
+      "type": "path",
+      "allowFolders": true,
+      "allowFiles": false,
+      "placeholder": "Project Folder"
+    },
+    {
+      "key": "staysail.clangd-format-on-save",
+      "title": "Format on Save",
+      "type": "boolean",
+      "default": false
+    }
+  ],
+
+  "configWorkspace": [
+    {
+      "key": "staysail.clangd-cc-path",
+      "title": "Directory containing compile-commands.json",
+      "type": "path",
+      "allowFolders": true,
+      "allowFiles": false,
+      "placeholder": "Global Default"
+    },
+    {
+      "key": "staysail.clangd-format-on-save",
+      "title": "Format on Save",
+      "type": "boolean"
+    }
+  ],
+
+  "activationEvents": ["onLanguage:c", "onLanguage:cpp"]
+}
