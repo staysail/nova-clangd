@@ -1,16 +1,35 @@
-# Clang (C/C++) Language Server for Nova
+# ClangD Language Server - C/C++
 
 ---
 
-This extension is forked from [Ben Beshara][1]'s original [C++ ClangD extension][2].
+> This extension is _BETA_ release level quality.
 
-The purpose is to integrate with new capabilities, and to add features such as support for automatic formatting.
+> _NOTE_: We may chose to rename this extension in the future to reflect extended
+> capabilities beyond just ClangD. We are also considering enabling the use
+> of `ccls` as an alternative language server for people who want it.
 
-This will likely best be paired with a syntax highlighting extension. If you are working with C, we would would recommend our [C extension][3] for that.
+This extension is forked from [Ben Beshara][1]'s original [C++ ClangD extension][2],
+but has been extended significantly beyond that.
 
-Hopefully a C++ Tree-Sitter grammar will be created as well.
+The purpose is to integrate with new capabilities, and to add features such as support for automatic formatting ala `clang-format.
+
+Syntax support is provided via the official [Tree-sitter][3] grammars for C and C++, along
+with queries we have supplied for this extension. These provide for syntax highlighting
+and folding. This highlighting should be both richer, and faster, than previous alternatives.
+It does require Nova version 10 or newer though.
+
+Some limited assistance for automatic indentation of blocks is provided
+for as well.
+
+Formatting is done via `clangd`, and will respect the `.clang-format` in your
+project directory if it is present.
+
+If you have installed our [C][4] extension, you can uninstall it, as this module
+provides a superset of that functionality.
 
 ## Requirements
+
+> _TIP_: Apple supplies `clangd` with the Xcode developer tools. That's all you need.
 
 In order to use this extension, you need to supply a version of `clangd` - its path can be specified in the global settings pane for this extension if required.
 
@@ -39,11 +58,13 @@ You can also configure preferences on a per-project basis in **Project → Proje
 
 ## Future Directions
 
-We will likely merge the C and C++ tree-sitter grammars, to provide an all-in one
-plugin for C developers. There are some additional features we might like to offer
+There are some additional features we might like to offer
 tuning for, such as default flags for compile_commands, or possibly generating them,
 support for configuration of clang-format options, and such.
 
+This extension will probably be renamed in the future (before it is 1.0).
+
 [1]: https://benbeshara.id.au/ "Ben Beshara"
 [2]: https://example.com/clangd-nova-extension
-[3]: https://github.com/staysail/nova-c "Tree-sitter grammar for C"
+[3]: https://tree-sitter.github.io/tree-sitter/ "Tree-sitter web site"
+[4]: https://github.com/staysail/nova-c "Tree-sitter grammar for C"
