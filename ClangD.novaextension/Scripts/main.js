@@ -18,6 +18,7 @@ exports.activate = function () {
   });
 
   nova.commands.register("staysail.clangd.format", formatFileCmd);
+  nova.commands.register("staysail.clangd.rename", renameSymbolCmd);
 };
 
 exports.deactivate = function () {
@@ -36,15 +37,6 @@ async function formatFileCmd(editor) {
   }
 }
 
-function lspApplyEdits(editor, edits) {
-  return editor.edit((textEditorEdit) => {
-    for (const change of edits.reverse()) {
-      const range = lspRangeToNovaRange(editor.document, change.range);
-      textEditorEdit.replace(range, change.newText);
-    }
-  });
-}
-
 async function formatFile(editor) {
   if (langserver && langserver.languageClient) {
     var cmdArgs = {
@@ -59,7 +51,7 @@ async function formatFile(editor) {
     };
     var client = langserver.languageClient;
     if (!client) {
-      nova.workspace.showErrorMessages("no ClangD client");
+      nova.workspace.showErrorMessage("no LSP client");
       return;
     }
     const changes = await client.sendRequest(
@@ -71,6 +63,99 @@ async function formatFile(editor) {
       return;
     }
     await lspApplyEdits(editor, changes);
+  }
+}
+
+async function renameSymbolCmd(editor) {
+  try {
+    await renameSymbol(editor);
+  } catch (err) {
+    nova.workspace.showErrorMessage(err);
+  }
+}
+
+async function renameSymbol(editor) {
+  if (!langserver || !langserver.languageClient) {
+    nova.workspace.showErrorMessage("no LSP client");
+    return;
+  }
+  var client = langserver.languageClient;
+
+  editor.selectWordsContainingCursors();
+
+  const selected = editor.selectedRange;
+  if (!selected) {
+    nova.workspace.showErrorMessage("nothing is selected");
+    return;
+  }
+  selectedPos = novaPositionToLspPosition(editor.document, selected.start);
+  if (!selectedPos) {
+    nova.workspace.showErrorMessage("unable to resolve selection");
+    return;
+  }
+  const oldName = editor.selectedText;
+  const newName = await new Promise((resolve) => {
+    nova.workspace.showInputPalette(
+      "Rename symbol to",
+      { placeholder: oldName, value: oldName },
+      resolve
+    );
+  });
+
+  console.error("Position", selectedPos.line, selectedPos.character);
+
+  if (!newName || newName == oldName) {
+    return;
+  }
+
+  const params = {
+    newName: newName,
+    position: selectedPos,
+    textDocument: { uri: editor.document.uri },
+  };
+
+  console.error("Sending", JSON.stringify(params));
+
+  const response = await client.sendRequest("textDocument/rename", params);
+
+  if (!response) {
+    nova.workspace.showWarningMessage("Couldn't rename symbol");
+  }
+
+  lspApplyWorkspaceEdits(response);
+
+  // return to original location
+  await nova.workspace.openFile(editor.document.uri);
+  editor.scrollToCursorPosition();
+}
+
+function lspApplyEdits(editor, edits) {
+  return editor.edit((textEditorEdit) => {
+    for (const change of edits.reverse()) {
+      const range = lspRangeToNovaRange(editor.document, change.range);
+      textEditorEdit.replace(range, change.newText);
+    }
+  });
+}
+
+async function lspApplyWorkspaceEdits(edit) {
+  // at present we only support the simple changes field.
+  // to support richer document changes we will need to express
+  // more capabilities during negotiation.
+  if (!edit.changes) {
+    return;
+  }
+  for (const uri in edit.changes) {
+    const changes = edit.changes[uri];
+    if (!changes.length) {
+      continue; // this should not happen
+    }
+    const editor = await nova.workspace.openFile(uri);
+    if (!editor) {
+      nova.workspace.showWarningMessage("Unable to open ${uri}");
+      continue;
+    }
+    lspApplyEdits(editor, changes);
   }
 }
 
@@ -95,6 +180,52 @@ function lspRangeToNovaRange(document, range) {
   }
   let res = new Range(start, end);
   return res;
+}
+
+function novaRangeToLspRange(document, range) {
+  const lines = document
+    .getTextInRange(new Range(0, document.length))
+    .split(document.eol);
+  console.error(
+    "start",
+    range.start,
+    "end",
+    range.end,
+    "length",
+    document.length,
+    "lines",
+    lines.length
+  );
+  let pos = 0;
+  let start = undefined;
+  let end = undefined;
+  for (let line = 0; line < lines.length; line++) {
+    if (!start && pos + lines[line].length >= range.start) {
+      console.error("Found start", line, range.start - pos);
+      start = { line: line, character: range.start - pos };
+    }
+    if (!end && pos + lines[line].length >= range.end) {
+      end = { line: line, character: range.end - pos };
+      console.error("Found end", line, range.end - pos);
+      return { start: start, end: end };
+    }
+    pos += lines[line].length + document.eol.length;
+  }
+  return null;
+}
+
+function novaPositionToLspPosition(document, where) {
+  const lines = document
+    .getTextInRange(new Range(0, document.length))
+    .split(document.eol);
+  let pos = 0;
+  for (let line = 0; line < lines.length; line++) {
+    if (pos + lines[line].length >= where) {
+      return { character: where - pos, line: line };
+    }
+    pos += lines[line].length + document.eol.length;
+  }
+  return null;
 }
 
 class ClangDLanguageServer {
@@ -140,9 +271,9 @@ class ClangDLanguageServer {
       path = "/usr/bin/clangd";
     }
 
-    let CCPath = nova.config.get("staysail.clangd-path", "string");
+    let CCPath = nova.config.get("staysail.clangd-cc-path", "string");
     if (!CCPath)
-      CCPath = nova.workspace.config.get("staysail.clangd-path", "string");
+      CCPath = nova.workspace.config.get("staysail.clangd-cc-path", "string");
     if (!CCPath) CCPath = nova.workspace.path;
 
     // Create the client

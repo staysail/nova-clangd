@@ -1,6 +1,6 @@
 {
   "identifier": "tech.staysail.ClangD",
-  "name": "ClangD Language Server",
+  "name": "C Dragon",
   "organization": "Staysail Systems",
   "description": "C and C++ support via ClangD",
   "version": "0.6",
@@ -19,9 +19,16 @@
   "commands": {
     "editor": [
       {
-        "title": "Format C/C++ File",
+        "title": "Format File",
         "command": "staysail.clangd.format",
         "shortcut": "opt-shift-f",
+        "filters": {
+          "syntaxes": ["c", "cpp"]
+        }
+      },
+      {
+        "title": "Rename Symbol",
+        "command": "staysail.clangd.rename",
         "filters": {
           "syntaxes": ["c", "cpp"]
         }

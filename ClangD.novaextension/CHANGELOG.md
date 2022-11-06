@@ -1,3 +1,9 @@
+## Version 0.7
+
+Initial support for symbol renames. This seems to work well when
+executed for local symbols, or when done at the declaration site,
+but there is something preventing renames at other sites.
+
 ## Version 0.6
 
 Added syntax support via Tree-sitter grammars for C and C++.
