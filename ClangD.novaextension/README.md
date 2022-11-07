@@ -21,13 +21,17 @@ but has been extended significantly beyond Ben's original work.
 | ✅     | C Support                       |                                                           |
 | ✅     | C++ Support                     |                                                           |
 | ✅     | Highlighting                    | Uses Tree-sitter (fast!)                                  |
-| ✅     | Code folding                    | Collapse functions, classes, structs, blocks, etc.        |
-| ✅     | Jump to definition              |                                                           |
+| ✅     | Code Folding                    | Collapse functions, classes, structs, blocks, etc.        |
+| ✅     | Jump to Definition              |                                                           |
+| ⛔️    | Jump to Declaration             | Coming soon.                                              |
+| ⛔️    | Jump to Implementation          | Coming soon.                                              |
+| ⛔️    | Jump to Type Definition         | Coming soon.                                              |
 | ✅     | Hover                           | Relevant documentation when you hover over a symbol.      |
 | ✅     | Signature Assistance            | Get parameter hints as you type.                          |
 | ✅     | Diagnostic Assistance           | Report issues, and in some cases suggestsions, with code. |
 | ✅     | Formatting                      | Respects `.clang-format`                                  |
 | ✅     | Format on Save                  |                                                           |
+| ⛔️    | Format Selection                | Coming soon.                                              |
 | ☑️     | Code Actions                    | Suggested fix. Limited at present.                        |
 | ☑️     | Rename Symbol                   | Various caveats.                                          |
 | ⛔️    | Format Selection                | Coming soon.                                              |
@@ -38,6 +42,11 @@ but has been extended significantly beyond Ben's original work.
 | ⛔️    | Language Server Restart         | Coming soon.                                              |
 | ⛔️    | Language Server Diagnostic Info | Coming soon.                                              |
 | ⛔️    | Clang-Tidy Support              | Richer advice, only via `clangd`                          |
+| ⛔️    | Internationalization            | Support for multiple languages                            |
+| ⛔️    | French                          | Localized                                                 |
+| ⛔️    | German                          | Localized                                                 |
+| ⛔️    | Chinese                         | Localized                                                 |
+| ⛔️    | Japanese                        | Localized                                                 |
 | ✅     | `clangd` Support                |                                                           |
 | ✅     | `ccls` Support                  |                                                           |
 
