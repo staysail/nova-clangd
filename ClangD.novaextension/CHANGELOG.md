@@ -1,3 +1,11 @@
+## Version 0.8
+
+New name, "C-Dragon", with a new icon.
+
+Added support for CCLS language server.
+Added menu access to extension preferences.
+Added a sponsorship link.
+
 ## Version 0.7
 
 Initial support for symbol renames. This seems to work well when
@@ -26,6 +34,10 @@ recognized.)
 
 Staysail release. This includes support automatic formatting, including
 format on save.
+
+---
+
+_These release notes are from Ben Beshara._
 
 ## Version 0.1
 

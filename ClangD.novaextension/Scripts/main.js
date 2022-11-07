@@ -19,6 +19,7 @@ exports.activate = function () {
 
   nova.commands.register("staysail.clangd.format", formatFileCmd);
   nova.commands.register("staysail.clangd.rename", renameSymbolCmd);
+  nova.commands.register("staysail.clangd.preferences", openPreferences);
 };
 
 exports.deactivate = function () {
@@ -28,6 +29,10 @@ exports.deactivate = function () {
     langserver = null;
   }
 };
+
+function openPreferences(editor) {
+  nova.workspace.openConfig();
+}
 
 async function formatFileCmd(editor) {
   try {
@@ -51,7 +56,7 @@ async function formatFile(editor) {
     };
     var client = langserver.languageClient;
     if (!client) {
-      nova.workspace.showErrorMessage("no LSP client");
+      nova.workspace.showErrorMessage("No LSP client");
       return;
     }
     const changes = await client.sendRequest(
@@ -76,7 +81,7 @@ async function renameSymbolCmd(editor) {
 
 async function renameSymbol(editor) {
   if (!langserver || !langserver.languageClient) {
-    nova.workspace.showErrorMessage("no LSP client");
+    nova.workspace.showErrorMessage("No LSP client");
     return;
   }
   var client = langserver.languageClient;
@@ -85,12 +90,12 @@ async function renameSymbol(editor) {
 
   const selected = editor.selectedRange;
   if (!selected) {
-    nova.workspace.showErrorMessage("nothing is selected");
+    nova.workspace.showErrorMessage("Nothing is selected");
     return;
   }
   selectedPos = novaPositionToLspPosition(editor.document, selected.start);
   if (!selectedPos) {
-    nova.workspace.showErrorMessage("unable to resolve selection");
+    nova.workspace.showErrorMessage("Unable to resolve selection");
     return;
   }
   const oldName = editor.selectedText;
@@ -102,15 +107,16 @@ async function renameSymbol(editor) {
     );
   });
 
-  console.error("Position", selectedPos.line, selectedPos.character);
-
   if (!newName || newName == oldName) {
     return;
   }
 
   const params = {
     newName: newName,
-    position: selectedPos,
+    position: {
+      line: Number(selectedPos.line),
+      character: Number(selectedPos.character),
+    },
     textDocument: { uri: editor.document.uri },
   };
 
@@ -122,6 +128,8 @@ async function renameSymbol(editor) {
     nova.workspace.showWarningMessage("Couldn't rename symbol");
   }
 
+  console.error("Received", JSON.stringify(response));
+
   lspApplyWorkspaceEdits(response);
 
   // return to original location
@@ -129,9 +137,24 @@ async function renameSymbol(editor) {
   editor.scrollToCursorPosition();
 }
 
+// changes in reverse order, so that earlier changes
+// do not disrupt later ones.  some methods and
+// servers give them to us in sensible order,
+// others do it in reverse.
+function sortChangesReverse(changes) {
+  let result = changes.sort(function (a, b) {
+    if (a.range.start.line != b.range.start.line) {
+      return b.range.start.line - a.range.start.line;
+    }
+    return b.range.start.character - a.range.start.character;
+  });
+
+  console.error("sorted: ", JSON.stringify(result));
+  return result;
+}
 function lspApplyEdits(editor, edits) {
   return editor.edit((textEditorEdit) => {
-    for (const change of edits.reverse()) {
+    for (const change of sortChangesReverse(edits)) {
       const range = lspRangeToNovaRange(editor.document, change.range);
       textEditorEdit.replace(range, change.newText);
     }
@@ -143,8 +166,36 @@ async function lspApplyWorkspaceEdits(edit) {
   // to support richer document changes we will need to express
   // more capabilities during negotiation.
   if (!edit.changes) {
+    // this should come in the form of a documentChanges
+    if (!edit.documentChanges) {
+      nova.workspace.showWarningMessage("Unable to apply any changes");
+      return;
+    }
+    // Note that we can only support edits not creates or renames
+    // and not annotations.  But this is good enough for CCLS.
+    // We also don't have any notion of document versioning.
+    for (const dc in edit.documentChanges) {
+      // Possibly support rename, create, and delete operations
+      const uri = edit.documentChanges[dc].textDocument.uri;
+      let edits = edit.documentChanges[dc].edits;
+      if (!edits.length) {
+        console.error("missing edits for", uri);
+        continue;
+      }
+      console.error("applying changines for", uri);
+      const editor = await nova.workspace.openFile(uri);
+      if (!editor) {
+        nova.workspace.showWarningMessage("Unable to open ${uri}");
+        continue;
+      }
+      lspApplyEdits(editor, edits);
+      // convert to the legacy style
+      // edit.changes[uri] = edit.edits;
+    }
     return;
   }
+
+  // legacy simple changes
   for (const uri in edit.changes) {
     const changes = edit.changes[uri];
     if (!changes.length) {
@@ -186,27 +237,15 @@ function novaRangeToLspRange(document, range) {
   const lines = document
     .getTextInRange(new Range(0, document.length))
     .split(document.eol);
-  console.error(
-    "start",
-    range.start,
-    "end",
-    range.end,
-    "length",
-    document.length,
-    "lines",
-    lines.length
-  );
   let pos = 0;
   let start = undefined;
   let end = undefined;
   for (let line = 0; line < lines.length; line++) {
     if (!start && pos + lines[line].length >= range.start) {
-      console.error("Found start", line, range.start - pos);
       start = { line: line, character: range.start - pos };
     }
     if (!end && pos + lines[line].length >= range.end) {
       end = { line: line, character: range.end - pos };
-      console.error("Found end", line, range.end - pos);
       return { start: start, end: end };
     }
     pos += lines[line].length + document.eol.length;
@@ -221,7 +260,7 @@ function novaPositionToLspPosition(document, where) {
   let pos = 0;
   for (let line = 0; line < lines.length; line++) {
     if (pos + lines[line].length >= where) {
-      return { character: where - pos, line: line };
+      return { character: Number(where - pos), line: Number(line) };
     }
     pos += lines[line].length + document.eol.length;
   }
@@ -266,9 +305,9 @@ class ClangDLanguageServer {
       nova.subscriptions.remove(this.languageClient);
     }
 
-    // Use the default server path
-    if (!path) {
-      path = "/usr/bin/clangd";
+    let lsp = nova.config.get("staysail.clangd-lsp");
+    if (!lsp) {
+      lsp = "clangd";
     }
 
     let CCPath = nova.config.get("staysail.clangd-cc-path", "string");
@@ -276,18 +315,39 @@ class ClangDLanguageServer {
       CCPath = nova.workspace.config.get("staysail.clangd-cc-path", "string");
     if (!CCPath) CCPath = nova.workspace.path;
 
+    let args = [];
+
+    // Use the default server path
+    if (!path) {
+      if (lsp == "clangd") {
+        path = "/usr/bin/clangd";
+      } else if (lsp == "ccls") {
+        path = "/opt/homebrew/bin/ccls";
+      }
+    }
+
+    if (lsp == "clangd") {
+      args = ["--compile-commands-dir=" + CCPath, "--log-verbose"];
+    } else if (lsp == "ccls") {
+      args = [
+        '--init={ "compilationDatabaseDirectory": "' + CCPath + '" }',
+        "--print-all-options",
+      ];
+    } else {
+      args = [];
+    }
     // Create the client
     var serverOptions = {
       path: path,
-      args: ["--compile-commands-dir=" + CCPath, "--suggest-missing-includes"],
+      args: args,
     };
     var clientOptions = {
       // The set of document syntaxes for which the server is valid
       syntaxes: ["c", "cpp"],
     };
     var client = new LanguageClient(
-      "clang-langserver",
-      "clang Language Server",
+      "cdragon-langserver",
+      "C-Dragon Language Server",
       serverOptions,
       clientOptions
     );

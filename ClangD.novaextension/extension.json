@@ -1,13 +1,14 @@
 {
   "identifier": "tech.staysail.ClangD",
-  "name": "C Dragon",
+  "name": "C-Dragon",
   "organization": "Staysail Systems",
-  "description": "C and C++ support via ClangD",
-  "version": "0.6",
+  "description": "C and C++ support",
+  "version": "0.8",
   "categories": ["languages", "formatters", "completions", "issues"],
   "license": "MIT",
   "repository": "https://github.com/staysail/nova-clangd",
   "bugs": "https://github.com/staysail/nova-cland/issues",
+  "funding": "https://github.com/sponsors/gdamore",
 
   "main": "main.js",
 
@@ -32,14 +33,32 @@
         "filters": {
           "syntaxes": ["c", "cpp"]
         }
+      },
+      {
+        "title": "Preferences",
+        "command": "staysail.clangd.preferences",
+        "syntaxes": ["c", "cpp"]
       }
     ]
   },
 
   "config": [
     {
+      "key": "staysail.clangd-lsp",
+      "title": "Language server to use",
+      "description": "Which language server to use",
+      "type": "enum",
+      "values": [
+        ["clangd", "CLangD"],
+        ["ccls", "ccls"]
+      ],
+      "default": "clangd"
+    },
+    {
       "key": "staysail.clangd-path",
-      "title": "clangd Path",
+
+      "title": "Language server Path",
+      "description": "Path to the language server",
       "type": "path",
       "placeholder": "/usr/bin/clangd"
     },
@@ -53,7 +72,8 @@
     },
     {
       "key": "staysail.clangd-format-on-save",
-      "title": "Format on Save",
+      "title": "Format on save",
+      "description": "Format C and C++ files automatically when saving.",
       "type": "boolean",
       "default": false
     }
@@ -70,8 +90,15 @@
     },
     {
       "key": "staysail.clangd-format-on-save",
-      "title": "Format on Save",
-      "type": "boolean"
+      "title": "Format on save",
+      "description": "Format C and C++ files automatically when saving.",
+      "type": "enum",
+      "values": [
+        [null, "Inherit from Global Settings"],
+        [false, "Disable"],
+        [true, "Enable"]
+      ],
+      "default": null
     }
   ],
 
