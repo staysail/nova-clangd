@@ -1,4 +1,23 @@
+// configuration keys
+const cfgLspFlavor = "tech.staysail.cdragon.lsp.flavor";
+const cfgLspPath = "tech.staysail.cdragon.lsp.path";
+const cfgFormatOnSave = "tech.staysail.cdragon.format.onSave";
+
+// command names
+const cmdFormatFile = "tech.staysail.cdragon.formatFile";
+const cmdRenameSymbol = "tech.staysail.cdragon.renameSymbol";
+const cmdPreferences = "tech.staysail.cdragon.preferences";
+
+// LSP flavors
+const flavorApple = "apple";
+const flavorLLVM = "clangd";
+const flavorCCLS = "ccls";
+const flavorNone = "none";
+
+// global variables
 var langserver = null;
+var lspFlavor = flavorNone;
+var lspPath = "";
 
 exports.activate = function () {
   // Do work when the extension is activated
@@ -8,18 +27,44 @@ exports.activate = function () {
     if (editor.document.syntax != "c" && editor.document.syntax != "cpp")
       return;
     editor.onWillSave((editor) => {
-      const formatOnSave = nova.workspace.config.get(
-        "staysail.clangd-format-on-save"
-      );
+      const formatOnSave = nova.workspace.config.get(cfgFormatOnSave);
       if (formatOnSave) {
         return formatFile(editor);
       }
     });
   });
 
-  nova.commands.register("staysail.clangd.format", formatFileCmd);
-  nova.commands.register("staysail.clangd.rename", renameSymbolCmd);
-  nova.commands.register("staysail.clangd.preferences", openPreferences);
+  nova.commands.register(cmdFormatFile, formatFileCmd);
+  nova.commands.register(cmdRenameSymbol, renameSymbolCmd);
+  nova.commands.register(cmdPreferences, openPreferences);
+
+  nova.config.observe(cfgLspFlavor, function (flavor) {
+    if (lspFlavor == flavor) {
+      return;
+    }
+    lspFlavor = flavor;
+    switch (flavor) {
+      case flavorApple:
+        nova.config.set(cfgLspPath, "/usr/bin/clangd");
+        break;
+      case flavorLLVM:
+        nova.config.set(cfgLspPath, "/usr/local/bin/clangd");
+        break;
+      case flavorCCLS:
+        nova.config.set(cfgLspPath, "/usr/local/bin/ccls");
+        break;
+      case flavorNone:
+        nova.config.set(cfgLspPath);
+        break;
+    }
+  });
+  nova.config.observe(cfgLspPath, function (path) {
+    if (lspPath == path) {
+      return;
+    }
+    lspPath = path;
+    restartServer();
+  });
 };
 
 exports.deactivate = function () {
@@ -86,6 +131,8 @@ async function renameSymbol(editor) {
   }
   var client = langserver.languageClient;
 
+  // we have to do this because there is no way to ask
+  // for just the current editor cursor position
   editor.selectWordsContainingCursors();
 
   const selected = editor.selectedRange;
@@ -98,11 +145,47 @@ async function renameSymbol(editor) {
     nova.workspace.showErrorMessage("Unable to resolve selection");
     return;
   }
-  const oldName = editor.selectedText;
+  let oldName = editor.selectedText;
+
+  switch (lspFlavor) {
+    case flavorApple:
+    case flavorLLVM:
+      // these (version 13 and newer at least) have prepare rename support
+      const prepResult = await client.sendRequest(
+        "textDocument/prepareRename",
+        {
+          textDocument: { uri: editor.document.uri },
+          position: selectedPos,
+        }
+      );
+      if (prepResult.placeholder) {
+        oldName = prepResult.placeholder;
+      } else if (prepResult.range) {
+        oldName = editor.document.getTextInRange(
+          lspRangeToNovaRange(editor.document, prepResult.range)
+        );
+      } else if (prepResult.start) {
+        oldName = editor.document.getTextInRange(
+          lspRangeToNovaRange(editor.document, prepResult)
+        );
+      }
+      break;
+    case flavorCCLS:
+      // CCLS does not have support for prepRename yet.
+      // When Nova supports unicode classes, change this:
+      // if (oldName.match(/^[_\p{XID_Start}][\p{XID_Continue}]*/)) {
+      // }
+      let m = oldName.match(/[_a-zA-Z][A-Za-z0-9_]*/);
+      if (!m || m[0] != oldName) {
+        nova.workspace.showErrorMessage("Symbol not selected");
+        return;
+      }
+  }
+
   const newName = await new Promise((resolve) => {
-    nova.workspace.showInputPalette(
-      "Rename symbol to",
-      { placeholder: oldName, value: oldName },
+    nova.workspace.showInputPanel(
+      `Rename symbol ${oldName}`,
+      { placeholder: oldName, value: oldName, label: "New name" },
       resolve
     );
   });
@@ -267,33 +350,23 @@ function novaPositionToLspPosition(document, where) {
   return null;
 }
 
-class ClangDLanguageServer {
-  constructor() {
-    // Observe the configuration setting for the server's location, and restart the server on change
-    nova.config.observe(
-      "staysail.clangd-path",
-      function (path) {
-        this.start(path);
-      },
-      this
-    );
-
-    nova.config.observe(
-      "staysail.clangd-path",
-      function () {
-        this.start(nova.config.get("staysail.clangd-path", "string"));
-      },
-      this
-    );
-
-    nova.workspace.config.observe(
-      "staysail.clangd-path",
-      function () {
-        this.start(nova.config.get("staysail.clangd-path", "string"));
-      },
-      this
-    );
+function restartServer() {
+  if (langserver) {
+    lsp = langserver;
+    langserver = null;
+    lsp.deactivate();
   }
+
+  flavor = nova.config.get(cfgLspFlavor);
+  if (!flavor || flavor == flavorNone) {
+    return;
+  }
+  langserver = new ClangDLanguageServer();
+  langserver.start();
+}
+
+class ClangDLanguageServer {
+  constructor() {}
 
   deactivate() {
     this.stop();
@@ -305,9 +378,9 @@ class ClangDLanguageServer {
       nova.subscriptions.remove(this.languageClient);
     }
 
-    let lsp = nova.config.get("staysail.clangd-lsp");
-    if (!lsp) {
-      lsp = "clangd";
+    let flavor = nova.config.get(cfgLspFlavor);
+    if (!flavor) {
+      flavor = flavorApple;
     }
 
     let CCPath = nova.config.get("staysail.clangd-cc-path", "string");
@@ -315,27 +388,34 @@ class ClangDLanguageServer {
       CCPath = nova.workspace.config.get("staysail.clangd-cc-path", "string");
     if (!CCPath) CCPath = nova.workspace.path;
 
+    if (!path) {
+      path = nova.config.get(cfgLspPath);
+    }
+
+    console.error("STARTING UP", flavor, path);
     let args = [];
 
     // Use the default server path
     if (!path) {
-      if (lsp == "clangd") {
-        path = "/usr/bin/clangd";
-      } else if (lsp == "ccls") {
-        path = "/opt/homebrew/bin/ccls";
-      }
+      console.error("No LSP server path"); // FIX ME
+      return; // no path
     }
 
-    if (lsp == "clangd") {
-      args = ["--compile-commands-dir=" + CCPath, "--log-verbose"];
-    } else if (lsp == "ccls") {
-      args = [
-        '--init={ "compilationDatabaseDirectory": "' + CCPath + '" }',
-        "--print-all-options",
-      ];
-    } else {
-      args = [];
+    switch (flavor) {
+      case flavorApple:
+        args = ["--compile-commands-dir=" + CCPath];
+        break;
+      case flavorLLVM:
+        args = ["--compile-commands-dir=" + CCPath, "--log-verbose"];
+        break;
+      case flavorCCLS:
+        args = [
+          '--init={ "compilationDatabaseDirectory": "' + CCPath + '" }',
+          "--print-all-options",
+        ];
+        break;
     }
+
     // Create the client
     var serverOptions = {
       path: path,

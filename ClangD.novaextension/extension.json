@@ -21,7 +21,7 @@
     "editor": [
       {
         "title": "Format File",
-        "command": "staysail.clangd.format",
+        "command": "tech.staysail.cdragon.formatFile",
         "shortcut": "opt-shift-f",
         "filters": {
           "syntaxes": ["c", "cpp"]
@@ -29,14 +29,14 @@
       },
       {
         "title": "Rename Symbol",
-        "command": "staysail.clangd.rename",
+        "command": "tech.staysail.cdragon.renameSymbol",
         "filters": {
           "syntaxes": ["c", "cpp"]
         }
       },
       {
         "title": "Preferences",
-        "command": "staysail.clangd.preferences",
+        "command": "tech.staysail.cdragon.preferences",
         "syntaxes": ["c", "cpp"]
       }
     ]
@@ -44,38 +44,53 @@
 
   "config": [
     {
-      "key": "staysail.clangd-lsp",
-      "title": "Language server to use",
-      "description": "Which language server to use",
-      "type": "enum",
-      "values": [
-        ["clangd", "CLangD"],
-        ["ccls", "ccls"]
-      ],
-      "default": "clangd"
-    },
-    {
-      "key": "staysail.clangd-path",
+      "title": "Language Server",
+      "type": "section",
+      "children": [
+        {
+          "key": "tech.staysail.cdragon.lsp.flavor",
+          "title": "Language server to use",
+          "description": "Which language server to use",
+          "type": "enum",
+          "values": [
+            ["apple", "Apple CLangD"],
+            ["clangd", "LLVM CLangD"],
+            ["ccls", "CCLS"],
+            ["none", "None"]
+          ],
+          "radio": false,
+          "default": "apple"
+        },
+        {
+          "key": "tech.staysail.cdragon.lsp.path",
 
-      "title": "Language server Path",
-      "description": "Path to the language server",
-      "type": "path",
-      "placeholder": "/usr/bin/clangd"
+          "title": "Language server Path",
+          "description": "Path to the language server",
+          "type": "path",
+          "placeholder": "/usr/bin/clangd"
+        },
+        {
+          "key": "staysail.clangd-cc-path",
+          "title": "Path to compile-commands.json directory",
+          "type": "path",
+          "allowFolders": true,
+          "allowFiles": false,
+          "placeholder": "Project Folder"
+        }
+      ]
     },
     {
-      "key": "staysail.clangd-cc-path",
-      "title": "Path to compile-commands.json directory",
-      "type": "path",
-      "allowFolders": true,
-      "allowFiles": false,
-      "placeholder": "Project Folder"
-    },
-    {
-      "key": "staysail.clangd-format-on-save",
-      "title": "Format on save",
-      "description": "Format C and C++ files automatically when saving.",
-      "type": "boolean",
-      "default": false
+      "title": "Formatting",
+      "type": "section",
+      "children": [
+        {
+          "key": "tech.staysail.cdragon.format.onSave",
+          "title": "Format on save",
+          "description": "Format C and C++ files automatically when saving.",
+          "type": "boolean",
+          "default": false
+        }
+      ]
     }
   ],
 
@@ -89,7 +104,7 @@
       "placeholder": "Global Default"
     },
     {
-      "key": "staysail.clangd-format-on-save",
+      "key": "tech.staysail.cdragon.format.onSave",
       "title": "Format on save",
       "description": "Format C and C++ files automatically when saving.",
       "type": "enum",
