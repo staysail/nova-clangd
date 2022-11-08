@@ -31,7 +31,7 @@ but has been extended significantly beyond Ben's original work.
 | ✅     | Diagnostic Assistance           | Report issues, and in some cases suggestsions, with code. |
 | ✅     | Formatting                      | Respects `.clang-format`                                  |
 | ✅     | Format on Save                  |                                                           |
-| ⛔️    | Format Selection                | Coming soon.                                              |
+| ⛔️    | Format Selection                | Coming soon. (Really we need a Nova fix though.)          |
 | ☑️     | Code Actions                    | Suggested fix. Limited at present.                        |
 | ☑️     | Rename Symbol                   | Various caveats.                                          |
 | ⛔️    | Format Selection                | Coming soon.                                              |
@@ -42,7 +42,7 @@ but has been extended significantly beyond Ben's original work.
 | ⛔️    | Language Server Restart         | Coming soon.                                              |
 | ⛔️    | Language Server Diagnostic Info | Coming soon.                                              |
 | ⛔️    | Clang-Tidy Support              | Richer advice, only via `clangd`                          |
-| ⛔️    | Internationalization            | Support for multiple languages                            |
+| ☑️     | Internationalization            | Support for multiple languages (needs localizations)      |
 | ⛔️    | French                          | Localized                                                 |
 | ⛔️    | German                          | Localized                                                 |
 | ⛔️    | Chinese                         | Localized                                                 |
@@ -139,6 +139,7 @@ Staysail has published extensions for the former two.
 
 - Symbol renames won't work if the symbol starts in columns 0 or 1, or is located
   on the first two lines of the file. This may be a defect in Nova.
+  It will result in a message similar to: `failed to decode textDocument/prepareRename request: expected integer`
 - Symbol renames can mess up highlighting. Make a subsequent change to refresh the
   tree-sitter grammar's view of things.
 - ClangD (and probably CCLS) has various limitations around symbol renaming. YMMV.

@@ -8,6 +8,29 @@ const cmdFormatFile = "tech.staysail.cdragon.formatFile";
 const cmdRenameSymbol = "tech.staysail.cdragon.renameSymbol";
 const cmdPreferences = "tech.staysail.cdragon.preferences";
 
+// messages (to aid localization)
+let messages = {};
+
+const msgNoLspClient = "msgNoLspClient";
+const msgNothingSelected = "msgNothingSelected";
+const msgUnableToResolveSelection = "msgUnableToResolveSelection";
+const msgRenameSymbol = "msgRenameSymbol";
+const msgNewName = "msgNewName"; // for renaming symbols
+const msgSelectionNotSymbol = "msgSelectionNotSymbol";
+const msgCouldNotRenameSym = "msgCouldNotRenameSymbol";
+const msgUnableToApply = "msgUnableToApply";
+const msgUnableToOpen = "msgUnableToOpen";
+
+messages[msgNoLspClient] = "No LSP client";
+messages[msgNothingSelected] = "Nothing is selected";
+messages[msgUnableToResolveSelection] = "Unable to resolve selection";
+messages[msgRenameSymbol] = "Rename symbol OLD_SYMBOL";
+messages[msgNewName] = "New name";
+messages[msgSelectionNotSymbol] = "Selection is not a symbol";
+messages[msgCouldNotRenameSym] = "Could not rename symbol";
+messages[msgUnableToApply] = "Unable to apply changes";
+messages[msgUnableToOpen] = "Unable to open URI";
+
 // LSP flavors
 const flavorApple = "apple";
 const flavorLLVM = "clangd";
@@ -75,7 +98,22 @@ exports.deactivate = function () {
   }
 };
 
-function openPreferences(editor) {
+function getMsg(key) {
+  console.error("KEY", key, "VAL", messages[key]);
+  return nova.localize(key, messages[key]);
+}
+
+function showError(err) {
+  // strip off the LSP error code; few users can grok it anyway
+  m = err.match(/-3\d\d\d\d\s+(.*)/);
+  if (m && m[1]) {
+    nova.workspace.showErrorMessage(m[1]);
+  } else {
+    nova.workspace.showErrorMessage(err);
+  }
+}
+
+function openPreferences(_) {
   nova.workspace.openConfig();
 }
 
@@ -83,7 +121,7 @@ async function formatFileCmd(editor) {
   try {
     await formatFile(editor);
   } catch (err) {
-    nova.workspace.showErrorMessage(err);
+    showError(err);
   }
 }
 
@@ -101,7 +139,7 @@ async function formatFile(editor) {
     };
     var client = langserver.languageClient;
     if (!client) {
-      nova.workspace.showErrorMessage("No LSP client");
+      nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
       return;
     }
     const changes = await client.sendRequest(
@@ -120,13 +158,13 @@ async function renameSymbolCmd(editor) {
   try {
     await renameSymbol(editor);
   } catch (err) {
-    nova.workspace.showErrorMessage(err);
+    showError(err);
   }
 }
 
 async function renameSymbol(editor) {
   if (!langserver || !langserver.languageClient) {
-    nova.workspace.showErrorMessage("No LSP client");
+    nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
     return;
   }
   var client = langserver.languageClient;
@@ -137,12 +175,12 @@ async function renameSymbol(editor) {
 
   const selected = editor.selectedRange;
   if (!selected) {
-    nova.workspace.showErrorMessage("Nothing is selected");
+    nova.workspace.showErrorMessage(getMsg(msgNothingSelected));
     return;
   }
   selectedPos = novaPositionToLspPosition(editor.document, selected.start);
   if (!selectedPos) {
-    nova.workspace.showErrorMessage("Unable to resolve selection");
+    nova.workspace.showErrorMessage(getMsg(msgUnableToResolveSelection));
     return;
   }
   let oldName = editor.selectedText;
@@ -177,15 +215,15 @@ async function renameSymbol(editor) {
       // }
       let m = oldName.match(/[_a-zA-Z][A-Za-z0-9_]*/);
       if (!m || m[0] != oldName) {
-        nova.workspace.showErrorMessage("Symbol not selected");
+        nova.workspace.showErrorMessage(getMsg(msgSelectionNotSymbol));
         return;
       }
   }
 
   const newName = await new Promise((resolve) => {
     nova.workspace.showInputPanel(
-      `Rename symbol ${oldName}`,
-      { placeholder: oldName, value: oldName, label: "New name" },
+      getMsg(msgRenameSymbol).replace("OLD_SYMBOL", oldName),
+      { placeholder: oldName, value: oldName, label: getMsg(msgNewName) },
       resolve
     );
   });
@@ -203,15 +241,11 @@ async function renameSymbol(editor) {
     textDocument: { uri: editor.document.uri },
   };
 
-  console.error("Sending", JSON.stringify(params));
-
   const response = await client.sendRequest("textDocument/rename", params);
 
   if (!response) {
-    nova.workspace.showWarningMessage("Couldn't rename symbol");
+    nova.workspace.showWarningMessage(getMsg(msgCouldNotRenameSym));
   }
-
-  console.error("Received", JSON.stringify(response));
 
   lspApplyWorkspaceEdits(response);
 
@@ -232,7 +266,6 @@ function sortChangesReverse(changes) {
     return b.range.start.character - a.range.start.character;
   });
 
-  console.error("sorted: ", JSON.stringify(result));
   return result;
 }
 function lspApplyEdits(editor, edits) {
@@ -251,7 +284,7 @@ async function lspApplyWorkspaceEdits(edit) {
   if (!edit.changes) {
     // this should come in the form of a documentChanges
     if (!edit.documentChanges) {
-      nova.workspace.showWarningMessage("Unable to apply any changes");
+      nova.workspace.showWarningMessage(getMsg(msgUnableToApply));
       return;
     }
     // Note that we can only support edits not creates or renames
@@ -262,18 +295,16 @@ async function lspApplyWorkspaceEdits(edit) {
       const uri = edit.documentChanges[dc].textDocument.uri;
       let edits = edit.documentChanges[dc].edits;
       if (!edits.length) {
-        console.error("missing edits for", uri);
         continue;
       }
-      console.error("applying changines for", uri);
       const editor = await nova.workspace.openFile(uri);
       if (!editor) {
-        nova.workspace.showWarningMessage("Unable to open ${uri}");
+        nova.workspace.showWarningMessage(
+          getMsg(msgUnableToOpen).replace("URI", uri)
+        );
         continue;
       }
       lspApplyEdits(editor, edits);
-      // convert to the legacy style
-      // edit.changes[uri] = edit.edits;
     }
     return;
   }
@@ -286,7 +317,9 @@ async function lspApplyWorkspaceEdits(edit) {
     }
     const editor = await nova.workspace.openFile(uri);
     if (!editor) {
-      nova.workspace.showWarningMessage("Unable to open ${uri}");
+      nova.workspace.showWarningMessage(
+        getMsg(msgUnableToOpen).replace("URI", uri)
+      );
       continue;
     }
     lspApplyEdits(editor, changes);
@@ -376,9 +409,13 @@ class ClangDLanguageServer {
     if (this.languageClient) {
       this.languageClient.stop();
       nova.subscriptions.remove(this.languageClient);
+      this.languageClient = null;
     }
 
     let flavor = nova.config.get(cfgLspFlavor);
+    if (flavor == flavorNone) {
+      return;
+    }
     if (!flavor) {
       flavor = flavorApple;
     }
@@ -392,12 +429,10 @@ class ClangDLanguageServer {
       path = nova.config.get(cfgLspPath);
     }
 
-    console.error("STARTING UP", flavor, path);
     let args = [];
 
     // Use the default server path
     if (!path) {
-      console.error("No LSP server path"); // FIX ME
       return; // no path
     }
 

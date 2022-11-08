@@ -1,9 +1,27 @@
+## Version 0.9
+
+Refactored configuration dialog, to make configuration with Apple Clang easier,
+and fixed several LSP selection/path bugs.
+
+Improved the error pop ups to eliminate ugly numeric JSON-RPC error codes.
+
+Use prepareRename on CLang. (Requires ClangD v 13.0 or better, which we aren't
+checking, yet.) This gives better diagnostic hints when renaming, and it also
+provides a nicer UI. For CCLS we check that the symbol passes a basic (ASCII only)
+regular expression. (When Nova supports Unicode escapes we can do better.)
+
+Converted the code to support localization. (Although no localization is done,
+PRs for .lproj files gratefully accepted. Ask me if you need guidance on what
+messages/content needs to be localized.)
+
 ## Version 0.8
 
 New name, "C-Dragon", with a new icon.
 
 Added support for CCLS language server.
+
 Added menu access to extension preferences.
+
 Added a sponsorship link.
 
 ## Version 0.7
