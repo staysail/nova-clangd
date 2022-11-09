@@ -9,6 +9,7 @@
   "repository": "https://github.com/staysail/nova-clangd",
   "bugs": "https://github.com/staysail/nova-cland/issues",
   "funding": "https://github.com/sponsors/gdamore",
+  "min_runtime": "10.0",
 
   "main": "main.js",
 
