@@ -34,7 +34,6 @@ but has been extended significantly beyond Ben's original work.
 | ⛔️    | Format Selection                | Coming soon. (Really we need a Nova fix though.)          |
 | ☑️     | Code Actions                    | Suggested fix. Limited at present.                        |
 | ☑️     | Rename Symbol                   | Various caveats.                                          |
-| ⛔️    | Format Selection                | Coming soon.                                              |
 | ⛔️    | Sort Includes                   | May depend on LSP                                         |
 | ⛔️    | Find References                 | Coming soon.                                              |
 | ⛔️    | Inlay Hints                     | (Does Nova support this?)                                 |
