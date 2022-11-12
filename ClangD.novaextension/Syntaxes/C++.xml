@@ -5,7 +5,7 @@
         <type>compiled</type>
         <preferred-file-extension>cc</preferred-file-extension>
     </meta>
-    
+
     <detectors>
         <extension priority="1.0">cc,cpp,cxx,c++,C,hxx,hh,hpp,ixx,cppm</extension>
         <combo priority="0.7">
@@ -21,7 +21,7 @@
             <match-content>^\s*#import\b</match-content>
         </combo>
     </detectors>
-    
+
     <indentation>
         <increase>
             <expression>\{</expression>
@@ -30,7 +30,7 @@
             <expression>\}</expression>
         </decrease>
     </indentation>
-    
+
     <comments>
         <single>
             <expression>//</expression>
@@ -44,11 +44,11 @@
             </ends-with>
         </multiline>
     </comments>
-    
+
     <injection>
         <expression>^(cpp)$</expression>
     </injection>
-    
+
     <tree-sitter language="cpp">
         <highlights path="cpp-highlights.scm" />
         <folds path="cpp-folds.scm" />

@@ -7,6 +7,7 @@ const cfgFormatOnSave = "tech.staysail.cdragon.format.onSave";
 const cmdFormatFile = "tech.staysail.cdragon.formatFile";
 const cmdRenameSymbol = "tech.staysail.cdragon.renameSymbol";
 const cmdPreferences = "tech.staysail.cdragon.preferences";
+const cmdRestart = "tech.staysail.cdragon.restart";
 
 // messages (to aid localization)
 let messages = {};
@@ -20,16 +21,22 @@ const msgSelectionNotSymbol = "msgSelectionNotSymbol";
 const msgCouldNotRenameSym = "msgCouldNotRenameSymbol";
 const msgUnableToApply = "msgUnableToApply";
 const msgUnableToOpen = "msgUnableToOpen";
+const msgLspStoppedErr = "msgLspStoppedErr";
+const msgLspDidNotStart = "msgLspDidNotStart";
+const msgLspRestarted = "msgLspRestarted";
 
 messages[msgNoLspClient] = "No LSP client";
 messages[msgNothingSelected] = "Nothing is selected";
 messages[msgUnableToResolveSelection] = "Unable to resolve selection";
-messages[msgRenameSymbol] = "Rename symbol OLD_SYMBOL";
+messages[msgRenameSymbol] = "Rename symbol _OLD_SYMBOL_";
 messages[msgNewName] = "New name";
 messages[msgSelectionNotSymbol] = "Selection is not a symbol";
 messages[msgCouldNotRenameSym] = "Could not rename symbol";
 messages[msgUnableToApply] = "Unable to apply changes";
 messages[msgUnableToOpen] = "Unable to open URI";
+messages[msgLspStoppedErr] = "Language server stopped with an error.";
+messages[msgLspDidNotStart] = "Language server failed to start.";
+messages[msgLspRestarted] = "Language server restarted.";
 
 // LSP flavors
 const flavorApple = "apple";
@@ -38,13 +45,19 @@ const flavorCCLS = "ccls";
 const flavorNone = "none";
 
 // global variables
-var langserver = null;
+var lspServer = null;
 var lspFlavor = flavorNone;
 var lspPath = "";
 
-exports.activate = function () {
+exports.activate = async function () {
+  console.log("ACTIVATING");
   // Do work when the extension is activated
-  langserver = new ClangDLanguageServer();
+  try {
+    lspServer = new ClangDLanguageServer();
+    await lspServer.start();
+  } catch (error) {
+    console.error("Failed starting up", error.message);
+  }
 
   nova.workspace.onDidAddTextEditor((editor) => {
     if (editor.document.syntax != "c" && editor.document.syntax != "cpp")
@@ -60,6 +73,7 @@ exports.activate = function () {
   nova.commands.register(cmdFormatFile, formatFileCmd);
   nova.commands.register(cmdRenameSymbol, renameSymbolCmd);
   nova.commands.register(cmdPreferences, openPreferences);
+  nova.commands.register(cmdRestart, restartServer);
 
   nova.config.observe(cfgLspFlavor, function (flavor) {
     if (lspFlavor == flavor) {
@@ -92,25 +106,31 @@ exports.activate = function () {
 
 exports.deactivate = function () {
   // Clean up state before the extension is deactivated
-  if (langserver) {
-    langserver.deactivate();
-    langserver = null;
+  if (lspServer) {
+    lspServer.deactivate();
+    lspServer = null;
   }
 };
 
 function getMsg(key) {
-  console.error("KEY", key, "VAL", messages[key]);
   return nova.localize(key, messages[key]);
 }
 
 function showError(err) {
   // strip off the LSP error code; few users can grok it anyway
-  m = err.match(/-3\d\d\d\d\s+(.*)/);
+  var m = err.match(/-3\d\d\d\d\s+(.*)/);
   if (m && m[1]) {
     nova.workspace.showErrorMessage(m[1]);
   } else {
     nova.workspace.showErrorMessage(err);
   }
+}
+
+function showNotice(title, body) {
+  var req = new NotificationRequest();
+  req.title = title;
+  req.body = body;
+  nova.notifications.add(req);
 }
 
 function openPreferences(_) {
@@ -126,7 +146,7 @@ async function formatFileCmd(editor) {
 }
 
 async function formatFile(editor) {
-  if (langserver && langserver.languageClient) {
+  if (lspServer && lspServer.lspClient) {
     var cmdArgs = {
       textDocument: {
         uri: editor.document.uri,
@@ -137,7 +157,7 @@ async function formatFile(editor) {
       },
       // TBD: options
     };
-    var client = langserver.languageClient;
+    var client = lspServer.lspClient;
     if (!client) {
       nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
       return;
@@ -163,11 +183,11 @@ async function renameSymbolCmd(editor) {
 }
 
 async function renameSymbol(editor) {
-  if (!langserver || !langserver.languageClient) {
+  if (!lspServer || !lspServer.lspClient) {
     nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
     return;
   }
-  var client = langserver.languageClient;
+  var client = lspServer.lspClient;
 
   // we have to do this because there is no way to ask
   // for just the current editor cursor position
@@ -222,7 +242,7 @@ async function renameSymbol(editor) {
 
   const newName = await new Promise((resolve) => {
     nova.workspace.showInputPanel(
-      getMsg(msgRenameSymbol).replace("OLD_SYMBOL", oldName),
+      getMsg(msgRenameSymbol).replace("_OLD_SYMBOL_", oldName),
       { placeholder: oldName, value: oldName, label: getMsg(msgNewName) },
       resolve
     );
@@ -383,33 +403,34 @@ function novaPositionToLspPosition(document, where) {
   return null;
 }
 
-function restartServer() {
-  if (langserver) {
-    lsp = langserver;
-    langserver = null;
-    lsp.deactivate();
+async function restartServer() {
+  if (lspServer) {
+    await lspServer.restart();
   }
-
-  flavor = nova.config.get(cfgLspFlavor);
-  if (!flavor || flavor == flavorNone) {
-    return;
-  }
-  langserver = new ClangDLanguageServer();
-  langserver.start();
 }
 
-class ClangDLanguageServer {
-  constructor() {}
-
-  deactivate() {
-    this.stop();
+class ClangDLanguageServer extends Disposable {
+  constructor() {
+    super();
+    this.lspClient = null;
   }
 
-  start(path) {
-    if (this.languageClient) {
-      this.languageClient.stop();
-      nova.subscriptions.remove(this.languageClient);
-      this.languageClient = null;
+  deactivate() {
+    this.dispose();
+  }
+
+  async didStop(error) {
+    if (error) {
+      showError(getMsg(msgLspStoppedErr));
+      console.error("Language server stopped with error:", error.message);
+    }
+  }
+
+  async start() {
+    if (this.lspClient) {
+      await this.dispose();
+      nova.subscriptions.remove(this.lspClient);
+      this.lspClient = null;
     }
 
     let flavor = nova.config.get(cfgLspFlavor);
@@ -425,11 +446,9 @@ class ClangDLanguageServer {
       CCPath = nova.workspace.config.get("staysail.clangd-cc-path", "string");
     if (!CCPath) CCPath = nova.workspace.path;
 
-    if (!path) {
-      path = nova.config.get(cfgLspPath);
-    }
-
+    let path = nova.config.get(cfgLspPath);
     let args = [];
+    let server = "";
 
     // Use the default server path
     if (!path) {
@@ -439,16 +458,25 @@ class ClangDLanguageServer {
     switch (flavor) {
       case flavorApple:
         args = ["--compile-commands-dir=" + CCPath];
+        path = path ?? "/usr/bin/clangd";
+        server = "clangd";
         break;
       case flavorLLVM:
-        args = ["--compile-commands-dir=" + CCPath, "--log-verbose"];
+        args = ["--compile-commands-dir=" + CCPath, "--log=verbose"];
+        path = path ?? "/usr/local/bin/clangd";
+        server = "clangd";
         break;
       case flavorCCLS:
         args = [
           '--init={ "compilationDatabaseDirectory": "' + CCPath + '" }',
           "--print-all-options",
         ];
+        path = path ?? "/usr/local/bin/ccls";
+        server = "ccls";
         break;
+      default:
+        console.error("Unknown LSP flavor. Please submit a bug report.");
+        return;
     }
 
     // Create the client
@@ -460,34 +488,46 @@ class ClangDLanguageServer {
       // The set of document syntaxes for which the server is valid
       syntaxes: ["c", "cpp"],
     };
-    var client = new LanguageClient(
-      "cdragon-langserver",
-      "C-Dragon Language Server",
-      serverOptions,
-      clientOptions
-    );
 
     try {
+      this.lspClient = new LanguageClient(
+        server,
+        "C-Dragon Language Server",
+        serverOptions,
+        clientOptions
+      );
+
+      this.didStopDispose = this.lspClient.onDidStop(this.didStop);
+
       // Start the client
-      client.start();
+      this.lspClient.start();
 
-      // Add the client to the subscriptions to be cleaned up
-      nova.subscriptions.add(client);
-      this.languageClient = client;
+      nova.subscriptions.add(this);
     } catch (err) {
-      // If the .start() method throws, it's likely because the path to the language server is invalid
-
-      if (nova.inDevMode()) {
-        console.error(err);
-      }
+      showNotice(getMsg(msgLspDidNotStart), "");
+      console.error(err);
     }
   }
 
-  stop() {
-    if (this.languageClient) {
-      this.languageClient.stop();
-      nova.subscriptions.remove(this.languageClient);
-      this.languageClient = null;
+  async restart() {
+    let onStop = this.lspClient?.onDidStop(() => {
+      this.start();
+      onStop?.dispose();
+      console.log("Language server restarted");
+      showNotice(getMsg(msgLspRestarted), "");
+    });
+
+    await this.dispose();
+  }
+
+  async dispose() {
+    if (this.didStopDispose) {
+      this.didStopDispose.dispose();
+      this.didStopDispose = null;
+    }
+    if (this.lspClient) {
+      this.lspClient.stop();
+      this.lspClient = null;
     }
   }
 }

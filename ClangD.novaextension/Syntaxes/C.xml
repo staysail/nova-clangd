@@ -5,12 +5,12 @@
         <type>compiled</type>
         <preferred-file-extension>c</preferred-file-extension>
     </meta>
-    
+
     <detectors>
         <extension priority="1.0">c</extension>
         <extension priority="0.5">h</extension>
     </detectors>
-    
+
     <indentation>
         <increase>
             <expression>\{</expression>
@@ -19,7 +19,7 @@
             <expression>\}</expression>
         </decrease>
     </indentation>
-    
+
     <comments>
         <single>
             <expression>//</expression>
@@ -33,11 +33,11 @@
             </ends-with>
         </multiline>
     </comments>
-    
+
     <injection>
         <expression>^(c)$</expression>
     </injection>
-    
+
     <tree-sitter language="c">
         <highlights path="c-highlights.scm" />
         <folds path="c-folds.scm" />

@@ -149,7 +149,7 @@
 
 ((identifier) @constant
  (#match? @constant "^[A-Z][A-Z\\d_]*$"))
- 
+
  ; workaround missing wchar_t in tree-sitter grammar
 ((type_identifier) @_wchar_t
  (#match? @_wchar_t "wchar_t")) @keyword.construct

@@ -3,7 +3,7 @@
   "name": "C-Dragon",
   "organization": "Staysail Systems",
   "description": "C and C++ support",
-  "version": "0.9",
+  "version": "0.9.1",
   "categories": ["languages", "formatters", "completions", "issues"],
   "license": "MIT",
   "repository": "https://github.com/staysail/nova-clangd",
@@ -40,6 +40,16 @@
         "command": "tech.staysail.cdragon.preferences",
         "syntaxes": ["c", "cpp"]
       }
+    ],
+    "extensions": [
+      {
+        "title": "Preferences",
+        "command": "tech.staysail.cdragon.preferences"
+      },
+      {
+        "title": "Restart Server",
+        "command": "tech.staysail.cdragon.restart"
+      }
     ]
   },
 
@@ -71,7 +81,7 @@
           "placeholder": "/usr/bin/clangd"
         },
         {
-          "key": "staysail.clangd-cc-path",
+          "key": "tech.staysail.cdragon.compileCommandsDir",
           "title": "Path to compile-commands.json directory",
           "type": "path",
           "allowFolders": true,
@@ -97,7 +107,7 @@
 
   "configWorkspace": [
     {
-      "key": "staysail.clangd-cc-path",
+      "key": "tech.staysail.cdragon.compileCommandsDir",
       "title": "Directory containing compile-commands.json",
       "type": "path",
       "allowFolders": true,

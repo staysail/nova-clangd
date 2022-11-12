@@ -1,3 +1,12 @@
+## Version 0.9.1
+
+Added ability to manually restart in extension menu.
+
+Fix startup issue with clangd.
+
+Preference values have been renamed, but some effort is made to convert
+old values to the new automatically.
+
 ## Version 0.9
 
 Refactored configuration dialog, to make configuration with Apple Clang easier,

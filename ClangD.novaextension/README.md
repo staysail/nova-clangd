@@ -39,7 +39,7 @@ but has been extended significantly beyond Ben's original work.
 | ⛔️    | Find References                 | Coming soon.                                              |
 | ⛔️    | Inlay Hints                     | (Does Nova support this?)                                 |
 | ⛔️    | Project Format Configuration    | (Supported via `.clang-format`)                           |
-| ⛔️    | Language Server Restart         | Coming soon.                                              |
+| ✅     | Language Server Restart         | Via extension menu.                                       |
 | ⛔️    | Language Server Diagnostic Info | Coming soon.                                              |
 | ⛔️    | Clang-Tidy Support              | Richer advice, only via `clangd`                          |
 | ☑️     | Internationalization            | Support for multiple languages (needs localizations)      |

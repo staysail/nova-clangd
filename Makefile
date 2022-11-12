@@ -33,7 +33,7 @@ all: $(C_DYLIB) $(CPP_DYLIB)
 
 c_%.o: $(C_SRC_DIR)/%.c
 	$(CC) $(OSXFLAGS) $(CFLAGS) -I $(C_SRC_DIR) -c -o $@ $<
-	
+
 cpp_%.o: $(CPP_SRC_DIR)/%.c
 	$(CC) $(OSXFLAGS) $(CFLAGS) -I $(CPP_SRC_DIR) -c -o $@ $<
 
