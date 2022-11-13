@@ -50,7 +50,6 @@ var lspFlavor = flavorNone;
 var lspPath = "";
 
 exports.activate = async function () {
-  console.log("ACTIVATING");
   // Do work when the extension is activated
   try {
     lspServer = new ClangDLanguageServer();
@@ -136,6 +135,12 @@ function showNotice(title, body) {
 function openPreferences(_) {
   nova.workspace.openConfig();
 }
+
+// Hey @Panic:
+// NB: formatSelection would be nice, but it's unlikely to be
+// useful in Nova today as the selection almost certainly will
+// start in column 0, and Nova does not have a way to express
+// such positions as it tries to turn that into `false`.
 
 async function formatFileCmd(editor) {
   try {
