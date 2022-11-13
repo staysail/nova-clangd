@@ -194,10 +194,6 @@ async function renameSymbol(editor) {
   }
   var client = lspServer.lspClient;
 
-  // we have to do this because there is no way to ask
-  // for just the current editor cursor position
-  editor.selectWordsContainingCursors();
-
   const selected = editor.selectedRange;
   if (!selected) {
     nova.workspace.showErrorMessage(getMsg(msgNothingSelected));
