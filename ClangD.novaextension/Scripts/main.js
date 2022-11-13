@@ -28,6 +28,8 @@ const msgUnableToOpen = "msgUnableToOpen";
 const msgLspStoppedErr = "msgLspStoppedErr";
 const msgLspDidNotStart = "msgLspDidNotStart";
 const msgLspRestarted = "msgLspRestarted";
+const msgNothingFound = "msgNothingFound";
+const msgSelectLocation = "msgSelectLocation";
 
 messages[msgNoLspClient] = "No LSP client";
 messages[msgNothingSelected] = "Nothing is selected";
@@ -41,6 +43,8 @@ messages[msgUnableToOpen] = "Unable to open URI";
 messages[msgLspStoppedErr] = "Language server stopped with an error.";
 messages[msgLspDidNotStart] = "Language server failed to start.";
 messages[msgLspRestarted] = "Language server restarted.";
+messages[msgNothingFound] = "No matches found.";
+messages[msgSelectLocation] = "Select location";
 
 // LSP flavors
 const flavorApple = "apple";
@@ -219,6 +223,47 @@ async function showLocation(loc) {
     });
 }
 
+async function chooseLocation(locs) {
+  if (!Array.isArray(locs)) {
+    if (loc) {
+      return showLocation(loc);
+    }
+    showNotice(getMsg(msgNothingFound), "");
+    return;
+  }
+  if (locs.length == 0) {
+    showNotice(getMsg(msgNothingFound), "");
+    return;
+  }
+  if (locs.length == 1) {
+    return showLocation(locs[0]);
+  }
+  let choices = [];
+  for (let i in locs) {
+    let uri = "";
+    let line = 1;
+    if (locs[i].targetUri) {
+      uri = locs[i].targetUri;
+      line = locs[i].targetRange.start.line + 1;
+    } else {
+      uri = locs[i].uri;
+      line = locs[i].range.start.line + 1;
+    }
+    let file = uri.replace(/^file:\/\//, "");
+    file = nova.workspace.relativizePath(file);
+    choices.push(`${file}:${line}`);
+  }
+  nova.workspace.showChoicePalette(
+    choices,
+    { placeholder: getMsg(msgSelectLocation) },
+    (choice, index) => {
+      if (choice != null) {
+        showLocation(locs[index]);
+      }
+    }
+  );
+}
+
 async function jumpTo(editor, thing) {
   console.error(`Jumping to ${thing}`);
   if (!lspServer || !lspServer.lspClient) {
@@ -238,19 +283,7 @@ async function jumpTo(editor, thing) {
     textDocument: { uri: editor.document.uri },
     position: position,
   });
-  console.error("RESPONSE:", JSON.stringify(response));
-  if (Array.isArray(response)) {
-    if (response.length == 0) {
-      showNotice("Location not found", "");
-    } else if (response.length == 1) {
-      await showLocation(response[0]);
-    } else {
-      showError("Too many locations!");
-    }
-  }
-  if (response.uri != null) {
-    await showLocation(response);
-  }
+  await chooseLocation(response);
 }
 
 async function jumpToDefinition(editor) {
