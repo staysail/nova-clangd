@@ -32,11 +32,11 @@ but has been extended significantly beyond Ben's original work.
 | ✅     | Formatting                      | Respects `.clang-format`                                  |
 | ✅     | Format on Save                  |                                                           |
 | ⛔️    | Format Selection                | Coming soon. (Really we need a Nova fix though.)          |
+| ⛔️    | Format Configuration            | (Supported via `.clang-format`)                           |
 | ☑️     | Code Actions                    | Suggested fix. Limited at present.                        |
 | ☑️     | Rename Symbol                   | Various caveats.                                          |
 | ⛔️    | Find References                 | Coming soon.                                              |
-| ⛔️    | Inlay Hints                     | (Does Nova support this?)                                 |
-| ⛔️    | Project Format Configuration    | (Supported via `.clang-format`)                           |
+| ⛔️    | Inlay Hints                     | Nova does not support.                                    |
 | ✅     | Language Server Restart         | Via extension menu.                                       |
 | ⛔️    | Language Server Diagnostic Info | Coming soon.                                              |
 | ⛔️    | Clang-Tidy Support              | Richer advice, only via `clangd`                          |
