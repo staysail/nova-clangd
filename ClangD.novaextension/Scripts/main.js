@@ -8,6 +8,10 @@ const cmdFormatFile = "tech.staysail.cdragon.formatFile";
 const cmdRenameSymbol = "tech.staysail.cdragon.renameSymbol";
 const cmdPreferences = "tech.staysail.cdragon.preferences";
 const cmdRestart = "tech.staysail.cdragon.restart";
+const cmdJumpToDefinition = "tech.staysail.cdragon.jumpToDefinition";
+const cmdJumpToDeclaration = "tech.staysail.cdragon.jumpToDeclaration";
+const cmdJumpToTypeDefinition = "tech.staysail.cdragon.jumpToTypeDefinition";
+const cmdJumpToImplementation = "tech.staysail.cdragon.jumpToImplementation";
 
 // messages (to aid localization)
 let messages = {};
@@ -69,6 +73,10 @@ exports.activate = async function () {
     });
   });
 
+  nova.commands.register(cmdJumpToDeclaration, jumpToDeclaration);
+  nova.commands.register(cmdJumpToDefinition, jumpToDefinition);
+  nova.commands.register(cmdJumpToTypeDefinition, jumpToTypeDefinition);
+  nova.commands.register(cmdJumpToImplementation, jumpToImplementation);
   nova.commands.register(cmdFormatFile, formatFileCmd);
   nova.commands.register(cmdRenameSymbol, renameSymbolCmd);
   nova.commands.register(cmdPreferences, openPreferences);
@@ -152,7 +160,7 @@ async function formatFileCmd(editor) {
 
 async function formatFile(editor) {
   if (lspServer && lspServer.lspClient) {
-    var cmdArgs = {
+    let cmdArgs = {
       textDocument: {
         uri: editor.document.uri,
       },
@@ -162,7 +170,7 @@ async function formatFile(editor) {
       },
       // TBD: options
     };
-    var client = lspServer.lspClient;
+    let client = lspServer.lspClient;
     if (!client) {
       nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
       return;
@@ -179,6 +187,104 @@ async function formatFile(editor) {
   }
 }
 
+// showLocation will either jump to a Location,
+// or to a LocationLink.  It will apply the text selection
+// appropriately.  Note that CCLS returns LocationLink
+// whereas CLangD returns plain Location.
+async function showLocation(loc) {
+  // this might be a Location, or it might be a LocationLink
+  if (loc.targetUri) {
+    return nova.workspace
+      .openFile(loc.targetUri, {
+        line: loc.targetRange.start.line + 1,
+        column: loc.targetRange.start.character + 1,
+      })
+      .then((editor) => {
+        let selected = lspRangeToNovaRange(
+          editor.document,
+          loc.targetSelectionRange
+        );
+        editor.selectedRange = selected;
+      });
+  }
+  return nova.workspace
+    .openFile(loc.uri, {
+      // this object starts counting at 1
+      line: loc.range.start.line + 1,
+      column: loc.range.start.character + 1,
+    })
+    .then((editor) => {
+      let selection = lspRangeToNovaRange(editor.document, loc.range);
+      editor.selectedRange = selection;
+    });
+}
+
+async function jumpTo(editor, thing) {
+  console.error(`Jumping to ${thing}`);
+  if (!lspServer || !lspServer.lspClient) {
+    console.error("lspServer not set?");
+    nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
+    return;
+  }
+  let client = lspServer.lspClient;
+
+  const selected = editor.selectedRange;
+  if (!selected) {
+    nova.workspace.showErrorMessage(getMsg(msgNothingSelected));
+    return;
+  }
+  const position = novaPositionToLspPosition(editor.document, selected.start);
+  const response = await client.sendRequest(`textDocument/${thing}`, {
+    textDocument: { uri: editor.document.uri },
+    position: position,
+  });
+  console.error("RESPONSE:", JSON.stringify(response));
+  if (Array.isArray(response)) {
+    if (response.length == 0) {
+      showNotice("Location not found", "");
+    } else if (response.length == 1) {
+      await showLocation(response[0]);
+    } else {
+      showError("Too many locations!");
+    }
+  }
+  if (response.uri != null) {
+    await showLocation(response);
+  }
+}
+
+async function jumpToDefinition(editor) {
+  try {
+    await jumpTo(editor, "definition");
+  } catch (err) {
+    showError(err);
+  }
+}
+
+async function jumpToDeclaration(editor) {
+  try {
+    await jumpTo(editor, "declaration");
+  } catch (err) {
+    showError(err);
+  }
+}
+
+async function jumpToTypeDefinition(editor) {
+  try {
+    await jumpTo(editor, "typeDefinition");
+  } catch (err) {
+    showError(err);
+  }
+}
+
+async function jumpToImplementation(editor) {
+  try {
+    await jumpTo(editor, "implementation");
+  } catch (err) {
+    showError(err);
+  }
+}
+
 async function renameSymbolCmd(editor) {
   try {
     await renameSymbol(editor);
@@ -188,10 +294,6 @@ async function renameSymbolCmd(editor) {
 }
 
 async function renameSymbol(editor) {
-  if (!lspServer || !lspServer.lspClient) {
-    nova.workspace.showErrorMessage(getMsg(msgNoLspClient));
-    return;
-  }
   var client = lspServer.lspClient;
 
   const selected = editor.selectedRange;
@@ -366,8 +468,7 @@ function lspRangeToNovaRange(document, range) {
     }
     pos += lines[line].length + document.eol.length;
   }
-  let res = new Range(start, end);
-  return res;
+  return new Range(start, end);
 }
 
 function novaRangeToLspRange(document, range) {

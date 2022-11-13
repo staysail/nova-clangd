@@ -1,3 +1,12 @@
+## Version 0.9.2
+
+Jump To Declaration, Definition, Type Definition.
+
+Do not select the symbol when trying to perform a rename.
+This avoids moving the selection, and offers a workaround for renaming
+symbols that are starting in the first two columns. (Hopefully Panic
+will actually fix the bug that causes this someday.)
+
 ## Version 0.9.1
 
 Added ability to manually restart in extension menu.

@@ -23,9 +23,9 @@ but has been extended significantly beyond Ben's original work.
 | ✅     | Highlighting                    | Uses Tree-sitter (fast!)                                  |
 | ✅     | Code Folding                    | Collapse functions, classes, structs, blocks, etc.        |
 | ✅     | Jump to Definition              |                                                           |
-| ⛔️    | Jump to Declaration             | Coming soon.                                              |
-| ⛔️    | Jump to Implementation          | Coming soon.                                              |
-| ⛔️    | Jump to Type Definition         | Coming soon.                                              |
+| ✅     | Jump to Declaration             |                                                           |
+| ✅     | Jump to Implementation          |                                                           |
+| ✅     | Jump to Type Definition         | (Requires current CLangD or CCLS.)                        |
 | ✅     | Hover                           | Relevant documentation when you hover over a symbol.      |
 | ✅     | Signature Assistance            | Get parameter hints as you type.                          |
 | ✅     | Diagnostic Assistance           | Report issues, and in some cases suggestsions, with code. |
@@ -34,7 +34,6 @@ but has been extended significantly beyond Ben's original work.
 | ⛔️    | Format Selection                | Coming soon. (Really we need a Nova fix though.)          |
 | ☑️     | Code Actions                    | Suggested fix. Limited at present.                        |
 | ☑️     | Rename Symbol                   | Various caveats.                                          |
-| ⛔️    | Sort Includes                   | May depend on LSP                                         |
 | ⛔️    | Find References                 | Coming soon.                                              |
 | ⛔️    | Inlay Hints                     | (Does Nova support this?)                                 |
 | ⛔️    | Project Format Configuration    | (Supported via `.clang-format`)                           |
@@ -136,11 +135,13 @@ Staysail has published extensions for the former two.
 
 ## Bugs
 
-- Symbol renames won't work if the symbol starts in columns 0 or 1, or is located
-  on the first two lines of the file. This may be a defect in Nova.
+- Symbol renames won't work if the selection starts in columns 0 or 1, or is located
+  on the first two lines of the file. This is a defect in Nova.
   It will result in a message similar to: `failed to decode textDocument/prepareRename request: expected integer`
+  To workaround this, try just clicking (not selecting) a position within the symbol,
+  but in in columns 3 or higher, then rename (the command palette may be easier to use).
 - Symbol renames can mess up highlighting. Make a subsequent change to refresh the
-  tree-sitter grammar's view of things.
+  tree-sitter grammar's view of things. This appears to be a Nova defect.
 - ClangD (and probably CCLS) has various limitations around symbol renaming. YMMV.
 - Some things that should be code actions are not.
 
