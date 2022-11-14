@@ -47,6 +47,7 @@ but has been extended significantly beyond Ben's original work.
 | ⛔️    | Japanese                        | Localized                                                 |
 | ✅     | `clangd` Support                |                                                           |
 | ✅     | `ccls` Support                  |                                                           |
+| ✅     | Update `clangd`                 | Checks for latest version and downloads from github.      |
 
 _Legend:_
 ✅ Implemented, and works well.
@@ -72,10 +73,21 @@ provides a superset of that functionality.
 You can also uninstall any other C or C++ language server or syntax plugins,
 as this should be a functional superset of all of them.
 
+## Permissions
+
+This extension requires read/write access to the filesystem and to access the networks.
+This facility is used to optionally download a local copy of `clangd` for use by the
+extension. This extension does not directly modify any files outside of it's own
+directory. Changes to the file made by formatting are done within the editor, and
+do not directly touch the filesystem (and also won't be written to disk until you
+save those files.) If you are concerned about security, you are welcome to review
+the source code, and build the extension for yourself.
+
 ## Requirements
 
 > _TIP_: Apple supplies `clangd` with the Xcode developer tools. That's all you need.
-> For that use case, this should Just Work<sup>&trade;</sup>.
+> For that use case, this should Just Work<sup>&trade;</sup>, with no extra configuration
+> required.
 
 ### Xcode (Apple) ClangD
 
@@ -85,32 +97,24 @@ and other features useful for software development on a mac.
 
 ### LLVM ClangD
 
-If you choose to use LLVM `clangd` you can install it using [Homebrew][5]:
+To use the newest version of `clangd`, you can use this extension's support
+for downloading and updating the newest version from GitHub.
 
-```
-# brew install llvm
-```
+This can be done from the **Extensions → C-Dragon → Check for Newer ClangD** menu item.
+The downloaded `clangd` is kept in the extension private directory, and will not
+affect any other installation of `clangd`, including the default one supplied by Apple.
 
-Note that `brew` installs LLVM in "`keg-only`" mode, so you will typically
-find the path to `clangd` in either `/opt/homebrew/opt/llvm/bin` (Apple Silicon)
-or `/usr/local/opt/llvm/bin` (Intel).
+### Custom ClangD
 
-or you can build it from scratch and place it where you like.
+If you have another installation of `clangd`, you can use it by choosing this
+option and setting the path to in the extension preferences. No automatic checks
+or downloads will be performed in that case.
 
 ### CCLS
 
-The `ccls` language server can be installed via brew, but note that
-it may require some tinkering to get it to work:
-
-```
-# brew install ccls
-```
-
-We recommend building `ccls` from scratch if you decide to go this route.
-
-As with LLVM, you will need to provide the path to the binary.
-If you use `brew`, it will be in `/opt/homebrew/bin/ccls` (Apple Silicon)
-or `/usr/local/bin/ccls` (Intel).
+If you have a working installation of `ccls` you can select it here.
+Installation and configuration of `ccls` is an advanced capability,
+and it may require extra effort to get it to work.
 
 ## Usage
 
@@ -122,7 +126,7 @@ The directory where your `compile_commands.json` file is stored can be specified
 
 To configure global preferences, open **Extensions → Extension Library...** then select C-Dragon's **Preferences** tab.
 
-You can also configure preferences on a per-project basis in **Project → Project Settings...**
+You can configure preferences on a per-project basis in **Project → Project Settings...**
 
 For convenience, access to configuration is also available via the **C-Dragon** menu item in the
 editor's right click menu (when working on a C or C++ file).
@@ -144,6 +148,11 @@ Staysail has published extensions for the former two.
   tree-sitter grammar's view of things. This appears to be a Nova defect.
 - ClangD (and probably CCLS) has various limitations around symbol renaming. YMMV.
 - Some things that should be code actions are not.
+
+## Localizations
+
+If you'd like to help with localizing this extension, please submit an issue or
+contact us directly.
 
 [1]: https://benbeshara.id.au/ "Ben Beshara"
 [2]: https://example.com/clangd-nova-extension

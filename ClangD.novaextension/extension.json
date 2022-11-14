@@ -15,7 +15,8 @@
 
   "entitlements": {
     "process": true,
-    "filesystem": "readonly"
+    "filesystem": "readwrite",
+    "requests": true
   },
 
   "commands": {
@@ -73,11 +74,16 @@
     "extensions": [
       {
         "title": "Preferences",
-        "command": "tech.staysail.cdragon.preferences"
+        "command": "tech.staysail.cdragon.extensionPreferences"
+      },
+      {
+        "title": "Check for Newer ClangD",
+        "command": "tech.staysail.cdragon.checkForUpdate"
       },
       {
         "title": "Restart Server",
-        "command": "tech.staysail.cdragon.restart"
+        "command": "tech.staysail.cdragon.restart",
+        "syntaxes": ["c", "cpp"]
       }
     ]
   },
@@ -94,7 +100,8 @@
           "type": "enum",
           "values": [
             ["apple", "Apple CLangD"],
-            ["clangd", "LLVM CLangD"],
+            ["auto", "LLVM ClangD"],
+            ["clangd", "Custom CLangD"],
             ["ccls", "CCLS"],
             ["none", "None"]
           ],
@@ -103,7 +110,6 @@
         },
         {
           "key": "tech.staysail.cdragon.lsp.path",
-
           "title": "Language server Path",
           "description": "Path to the language server",
           "type": "path",

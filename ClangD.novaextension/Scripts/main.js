@@ -1,17 +1,28 @@
+//
+// Copyright 2022 Staysail Systems, Inc.
+//
+// Distributed under the terms of the MIT license.
+//
+
 // configuration keys
 const cfgLspFlavor = "tech.staysail.cdragon.lsp.flavor";
 const cfgLspPath = "tech.staysail.cdragon.lsp.path";
 const cfgFormatOnSave = "tech.staysail.cdragon.format.onSave";
+const cfgClangdPath = "tech.staysail.cdragon.clangd.path";
+const cfgClangdLatest = "tech.staysail.cdragon.clangd.latest";
+const cfgClangdVersion = "tech.staysail.cdragon.clangd.version";
 
 // command names
 const cmdFormatFile = "tech.staysail.cdragon.formatFile";
 const cmdRenameSymbol = "tech.staysail.cdragon.renameSymbol";
 const cmdPreferences = "tech.staysail.cdragon.preferences";
+const cmdExtensionPreferences = "tech.staysail.cdragon.extensionPreferences";
 const cmdRestart = "tech.staysail.cdragon.restart";
 const cmdJumpToDefinition = "tech.staysail.cdragon.jumpToDefinition";
 const cmdJumpToDeclaration = "tech.staysail.cdragon.jumpToDeclaration";
 const cmdJumpToTypeDefinition = "tech.staysail.cdragon.jumpToTypeDefinition";
 const cmdJumpToImplementation = "tech.staysail.cdragon.jumpToImplementation";
+const cmdCheckForUpdate = "tech.staysail.cdragon.checkForUpdate";
 
 // messages (to aid localization)
 let messages = {};
@@ -30,6 +41,8 @@ const msgLspDidNotStart = "msgLspDidNotStart";
 const msgLspRestarted = "msgLspRestarted";
 const msgNothingFound = "msgNothingFound";
 const msgSelectLocation = "msgSelectLocation";
+const msgNoPathToLsp = "msgNoPathToLsp";
+const msgNothingToDownload = "msgNothingToDownload";
 
 messages[msgNoLspClient] = "No LSP client";
 messages[msgNothingSelected] = "Nothing is selected";
@@ -45,22 +58,27 @@ messages[msgLspDidNotStart] = "Language server failed to start.";
 messages[msgLspRestarted] = "Language server restarted.";
 messages[msgNothingFound] = "No matches found.";
 messages[msgSelectLocation] = "Select location";
+messages[msgNoPathToLsp] = "No path to LSP server";
+messages[msgNothingToDownload] = "Nothing to download";
 
 // LSP flavors
 const flavorApple = "apple";
 const flavorLLVM = "clangd";
 const flavorCCLS = "ccls";
+const flavorAuto = "auto"; // automatic download from GitHub
 const flavorNone = "none";
+
+// URL for the clangd GitHub Repo
+const clangdUrl = "https://api.github.com/repos/clangd/clangd";
+const extPath = nova.extension.globalStoragePath;
 
 // global variables
 var lspServer = null;
-var lspFlavor = flavorNone;
-var lspPath = "";
 
 exports.activate = async function () {
   // Do work when the extension is activated
+  lspServer = new ClangDLanguageServer();
   try {
-    lspServer = new ClangDLanguageServer();
     await lspServer.start();
   } catch (error) {
     console.error("Failed starting up", error.message);
@@ -84,33 +102,43 @@ exports.activate = async function () {
   nova.commands.register(cmdFormatFile, formatFileCmd);
   nova.commands.register(cmdRenameSymbol, renameSymbolCmd);
   nova.commands.register(cmdPreferences, openPreferences);
+  nova.commands.register(cmdExtensionPreferences, openExtensionPreferences);
   nova.commands.register(cmdRestart, restartServer);
+  nova.commands.register(cmdCheckForUpdate, () => {
+    checkForNewerClangD(true);
+  });
 
-  nova.config.observe(cfgLspFlavor, function (flavor) {
-    if (lspFlavor == flavor) {
+  nova.config.onDidChange(cfgLspFlavor, (newV, oldV) => {
+    if (newV == oldV) {
       return;
     }
-    lspFlavor = flavor;
-    switch (flavor) {
+    switch (newV) {
       case flavorApple:
-        nova.config.set(cfgLspPath, "/usr/bin/clangd");
+        nova.config.remove(cfgLspPath);
+        break;
+      case flavorAuto:
+        nova.config.remove(cfgLspPath);
         break;
       case flavorLLVM:
-        nova.config.set(cfgLspPath, "/usr/local/bin/clangd");
+        if (!nova.config.get(cfgLspPath)) {
+          nova.config.set(cfgLspPath, "/usr/local/bin/clangd");
+        }
         break;
       case flavorCCLS:
-        nova.config.set(cfgLspPath, "/usr/local/bin/ccls");
+        if (!nova.config.get(cfgLspPath)) {
+          nova.config.set(cfgLspPath, "/usr/local/bin/ccls");
+        }
         break;
       case flavorNone:
-        nova.config.set(cfgLspPath);
+        nova.config.remove(cfgLspPath);
         break;
     }
+    restartServer();
   });
-  nova.config.observe(cfgLspPath, function (path) {
-    if (lspPath == path) {
+  nova.config.onDidChange(cfgLspPath, (newV, oldV) => {
+    if (newV == oldV && newV) {
       return;
     }
-    lspPath = path;
     restartServer();
   });
 };
@@ -122,6 +150,104 @@ exports.deactivate = function () {
     lspServer = null;
   }
 };
+
+function makeExtensionDir() {
+  // make sure the workspace directory exists
+  try {
+    nova.fs.mkdir(nova.extension.globalStoragePath);
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+// TODO: GitHub would like us to use conditional HTTP and caching.
+
+function checkForNewerClangD(interactive = true) {
+  try {
+    checkForUpdate(interactive);
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+function checkForUpdate(interactive = true) {
+  fetch(`${clangdUrl}/releases/latest`)
+    .then((response) => response.json())
+    .then((latest) => {
+      // save this for later
+      const lj = JSON.stringify(latest);
+      if (lj != nova.config.get(cfgClangdLatest)) {
+        nova.config.set(cfgClangdLatest, lj);
+      }
+      let assets = latest.assets_url;
+      let ver = latest.name;
+      let zip = `clangd-mac-${ver}.zip`; // hate hard coding this, but we have no other metadata to use
+      if (ver && assets && interactive) {
+        // TODO: MSG:
+        showNotice(`Latest Version is ${ver}`, zip);
+      }
+
+      let clangd_path = extPath + `/clangd_${ver}/bin/clangd`;
+      if (
+        nova.fs.access(clangd_path, X_OK) &&
+        nova.config.get(cfgClangdPath) == clangd_path
+      ) {
+        if (interactive) {
+          // TODO: MSG
+          showNotice("Language server is up to date.", "");
+        }
+        console.log("clangd version is current");
+        return;
+      }
+      for (let asset of latest.assets) {
+        if (asset.name == zip) {
+          return downloadClangD(asset, ver, interactive);
+        }
+      }
+      // this should not happen, but if clangd ever changes how they publish assets,
+      // we might need to fix this.
+      showError(getMsg(msgNothingToDownload));
+    });
+}
+
+async function downloadClangD(asset, ver, interactive) {
+  let clangd_path = extPath + `/clangd_${ver}/bin/clangd`;
+
+  // remove the directory if it already exists
+  nova.fs.rmdir(extPath + `/clangd_${ver}`);
+  let zip = extPath + "/" + asset.name;
+  asset.uploader = {};
+  return fetch(asset.url, {
+    headers: { Accept: "application/octet-stream" },
+  })
+    .then((response) => {
+      return response.arrayBuffer();
+    })
+    .then((ab) => {
+      makeExtensionDir();
+      let f = nova.fs.open(zip, "w+b");
+      f.write(ab);
+      f.close();
+      // now we need to unzip the file
+      let proc = new Process("/usr/bin/unzip", {
+        cwd: extPath,
+        args: [zip],
+      });
+      let disp = proc.onDidExit((status) => {
+        if (interactive) {
+          // TODO: MSG
+          showNotice("Activating new LLVM version", ver);
+        }
+        if (status == 0 && nova.config.get(cfgLspFlavor) == flavorAuto) {
+          nova.config.set(cfgClangdPath, clangd_path);
+          nova.config.set(cfgClangdVersion, ver);
+          restartServer();
+        }
+        disp.dispose();
+      });
+      proc.start();
+    });
+}
 
 function getMsg(key) {
   return nova.localize(key, messages[key]);
@@ -146,6 +272,10 @@ function showNotice(title, body) {
 
 function openPreferences(_) {
   nova.workspace.openConfig();
+}
+
+function openExtensionPreferences(_) {
+  nova.openConfig();
 }
 
 // Hey @Panic:
@@ -341,9 +471,10 @@ async function renameSymbol(editor) {
   }
   let oldName = editor.selectedText;
 
-  switch (lspFlavor) {
+  switch (nova.config.get(cfgLspFlavor)) {
     case flavorApple:
     case flavorLLVM:
+    case flavorAuto:
       // these (version 13 and newer at least) have prepare rename support
       const prepResult = await client.sendRequest(
         "textDocument/prepareRename",
@@ -539,9 +670,7 @@ function novaPositionToLspPosition(document, where) {
 }
 
 async function restartServer() {
-  if (lspServer) {
-    await lspServer.restart();
-  }
+  await lspServer.restart();
 }
 
 class ClangDLanguageServer extends Disposable {
@@ -554,7 +683,7 @@ class ClangDLanguageServer extends Disposable {
     this.dispose();
   }
 
-  async didStop(error) {
+  didStop(error) {
     if (error) {
       showError(getMsg(msgLspStoppedErr));
       console.error("Language server stopped with error:", error.message);
@@ -585,12 +714,12 @@ class ClangDLanguageServer extends Disposable {
     let args = [];
     let server = "";
 
-    // Use the default server path
-    if (!path) {
-      return; // no path
-    }
-
     switch (flavor) {
+      case flavorAuto:
+        args = ["--compile-commands-dir=" + CCPath];
+        path = path ?? nova.config.get(cfgClangdPath);
+        server = "clangd";
+        break;
       case flavorApple:
         args = ["--compile-commands-dir=" + CCPath];
         path = path ?? "/usr/bin/clangd";
@@ -612,6 +741,11 @@ class ClangDLanguageServer extends Disposable {
       default:
         console.error("Unknown LSP flavor. Please submit a bug report.");
         return;
+    }
+    if (!path) {
+      // TODO: if flavor is auto, offer to download
+      showNotice(getMsg(msgNoPathToLsp), "");
+      return;
     }
 
     // Create the client
@@ -645,14 +779,19 @@ class ClangDLanguageServer extends Disposable {
   }
 
   async restart() {
-    let onStop = this.lspClient?.onDidStop(() => {
-      this.start();
-      onStop?.dispose();
-      console.log("Language server restarted");
-      showNotice(getMsg(msgLspRestarted), "");
-    });
+    let client = this.lspClient;
+    this.lspClient = null;
+    if (client) {
+      let onStop = client.onDidStop((ex) => {
+        onStop.dispose();
+        this.start();
+        showNotice(getMsg(msgLspRestarted), "");
+      });
 
-    await this.dispose();
+      await client.stop();
+    } else {
+      this.start();
+    }
   }
 
   async dispose() {
