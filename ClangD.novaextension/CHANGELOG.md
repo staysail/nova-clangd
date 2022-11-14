@@ -1,3 +1,7 @@
+## Version 0.9.3
+
+Support for using a private clangd, downloaded from GitHub.
+
 ## Version 0.9.2
 
 Jump To Declaration, Definition, Type Definition.
