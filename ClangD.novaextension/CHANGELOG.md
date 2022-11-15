@@ -1,3 +1,9 @@
+## Version 0.9.4
+
+Fixes for GH download. Also, cache results from GitHub.
+
+Fixes for internationalization.
+
 ## Version 0.9.3
 
 Support for using a private clangd, downloaded from GitHub.

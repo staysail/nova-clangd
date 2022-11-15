@@ -9,7 +9,7 @@ const cfgLspFlavor = "tech.staysail.cdragon.lsp.flavor";
 const cfgLspPath = "tech.staysail.cdragon.lsp.path";
 const cfgFormatOnSave = "tech.staysail.cdragon.format.onSave";
 const cfgClangdPath = "tech.staysail.cdragon.clangd.path";
-const cfgClangdLatest = "tech.staysail.cdragon.clangd.latest";
+const cfgClangdCached = "tech.staysail.cdragon.clangd.cached";
 const cfgClangdVersion = "tech.staysail.cdragon.clangd.version";
 
 // command names
@@ -43,6 +43,9 @@ const msgNothingFound = "msgNothingFound";
 const msgSelectLocation = "msgSelectLocation";
 const msgNoPathToLsp = "msgNoPathToLsp";
 const msgNothingToDownload = "msgNothingToDownload";
+const msgActivatingNewLSP = "msgActivatingNewLSP";
+const msgLspCurrent = "msgLspCurrent";
+const msgDownloadingClang = "msgDownloadingClang";
 
 messages[msgNoLspClient] = "No LSP client";
 messages[msgNothingSelected] = "Nothing is selected";
@@ -60,6 +63,9 @@ messages[msgNothingFound] = "No matches found.";
 messages[msgSelectLocation] = "Select location";
 messages[msgNoPathToLsp] = "No path to LSP server";
 messages[msgNothingToDownload] = "Nothing to download";
+messages[msgActivatingNewLSP] = "Activating new ClangD version.";
+messages[msgLspCurrent] = "CLangD is up to date.";
+messages[msgDownloadingClang] = "Downloading CLangD.";
 
 // LSP flavors
 const flavorApple = "apple";
@@ -70,6 +76,15 @@ const flavorNone = "none";
 
 // URL for the clangd GitHub Repo
 const clangdUrl = "https://api.github.com/repos/clangd/clangd";
+const userAgent = [
+  "Staysail-CDragon", // we have no way to obtain our own version number
+  "(nova " +
+    nova.versionString +
+    "; macOS " +
+    nova.systemVersion.join(".") +
+    ")",
+].join(" ");
+
 const extPath = nova.extension.globalStoragePath;
 
 // global variables
@@ -160,8 +175,6 @@ function makeExtensionDir() {
   }
 }
 
-// TODO: GitHub would like us to use conditional HTTP and caching.
-
 function checkForNewerClangD(interactive = true) {
   try {
     checkForUpdate(interactive);
@@ -170,55 +183,75 @@ function checkForNewerClangD(interactive = true) {
   }
 }
 
-function checkForUpdate(interactive = true) {
-  fetch(`${clangdUrl}/releases/latest`)
-    .then((response) => response.json())
-    .then((latest) => {
-      // save this for later
-      const lj = JSON.stringify(latest);
-      if (lj != nova.config.get(cfgClangdLatest)) {
-        nova.config.set(cfgClangdLatest, lj);
-      }
-      let assets = latest.assets_url;
-      let ver = latest.name;
-      let zip = `clangd-mac-${ver}.zip`; // hate hard coding this, but we have no other metadata to use
-      if (ver && assets && interactive) {
-        // TODO: MSG:
-        showNotice(`Latest Version is ${ver}`, zip);
-      }
+async function clangdLatestVersion() {
+  // My instinct is that there is probably a better way to do this,
+  // but I'm not a Javascript expert.  Would be grateful for any
+  // suggestions to clean it up.
+  let cached = nova.config.get(cfgClangdCached);
+  let options = {
+    headers: { "User-Agent": userAgent },
+  };
+  if (cached && cached.length == 2) {
+    options.headers["If-Modified-Since"] = cached[0];
+  }
+  let response = await fetch(`${clangdUrl}/releases/latest`, options);
+  let modified = response.headers.get("Last-Modified");
+  if (response.status == 304 && cached) {
+    return Promise.resolve(JSON.parse(cached[1]));
+  }
+  if (response.status != 200) {
+    return null;
+  }
+  let latest = await response.json();
+  nova.config.set(cfgClangdCached, [modified, JSON.stringify(latest)]);
+  return Promise.resolve(latest);
+}
 
-      let clangd_path = extPath + `/clangd_${ver}/bin/clangd`;
-      if (
-        nova.fs.access(clangd_path, X_OK) &&
-        nova.config.get(cfgClangdPath) == clangd_path
-      ) {
+function checkForUpdate(interactive = true) {
+  clangdLatestVersion().then((latest) => {
+    // save this for later
+    let assets = latest.assets_url;
+    let ver = latest.name;
+    let zip = `clangd-mac-${ver}.zip`; // hate hard coding this, but we have no other metadata to use
+
+    console.error(zip);
+    let clangd_path = extPath + `/clangd_${ver}/bin/clangd`;
+    console.error(clangd_path);
+    if (
+      nova.fs.access(clangd_path, nova.fs.X_OK) &&
+      nova.config.get(cfgClangdPath) == clangd_path
+    ) {
+      console.log(`clangd version ${ver} is current`);
+      if (interactive) {
+        showNotice(getMsg(msgLspCurrent), ver);
+      }
+      return;
+    }
+    for (let asset of latest.assets) {
+      if (asset.name == zip) {
         if (interactive) {
-          // TODO: MSG
-          showNotice("Language server is up to date.", "");
+          showNotice(getMsg(msgDownloadingClang), ver);
         }
-        console.log("clangd version is current");
-        return;
+        return downloadClangD(asset, ver, interactive);
       }
-      for (let asset of latest.assets) {
-        if (asset.name == zip) {
-          return downloadClangD(asset, ver, interactive);
-        }
-      }
-      // this should not happen, but if clangd ever changes how they publish assets,
-      // we might need to fix this.
-      showError(getMsg(msgNothingToDownload));
-    });
+    }
+
+    // this should not happen, but if clangd ever changes how they publish assets,
+    // we might need to fix this.
+    showError(getMsg(msgNothingToDownload));
+  });
 }
 
 async function downloadClangD(asset, ver, interactive) {
   let clangd_path = extPath + `/clangd_${ver}/bin/clangd`;
 
+  console.log(`Starting clangd download version ${ver}`);
   // remove the directory if it already exists
   nova.fs.rmdir(extPath + `/clangd_${ver}`);
   let zip = extPath + "/" + asset.name;
   asset.uploader = {};
   return fetch(asset.url, {
-    headers: { Accept: "application/octet-stream" },
+    headers: { Accept: "application/octet-stream", "User-Agent": userAgent },
   })
     .then((response) => {
       return response.arrayBuffer();
@@ -235,8 +268,7 @@ async function downloadClangD(asset, ver, interactive) {
       });
       let disp = proc.onDidExit((status) => {
         if (interactive) {
-          // TODO: MSG
-          showNotice("Activating new LLVM version", ver);
+          showNotice(getMsg(msgActivatingNewLSP), ver);
         }
         if (status == 0 && nova.config.get(cfgLspFlavor) == flavorAuto) {
           nova.config.set(cfgClangdPath, clangd_path);
@@ -782,7 +814,7 @@ class ClangDLanguageServer extends Disposable {
     let client = this.lspClient;
     this.lspClient = null;
     if (client) {
-      let onStop = client.onDidStop((ex) => {
+      let onStop = client.onDidStop((_) => {
         onStop.dispose();
         this.start();
         showNotice(getMsg(msgLspRestarted), "");
