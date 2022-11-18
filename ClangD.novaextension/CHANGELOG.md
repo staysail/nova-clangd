@@ -1,3 +1,7 @@
+## Version 0.9.5
+
+Initial swag at symbols for C syntax.
+
 ## Version 0.9.4
 
 Fixes for GH download. Also, cache results from GitHub.
