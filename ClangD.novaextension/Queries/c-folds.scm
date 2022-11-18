@@ -1,4 +1,4 @@
-(function_definition (compound_statement (#set! role function)) @subtree)
+(function_definition body: (compound_statement (#set! role function)) @subtree)
 (struct_specifier (field_declaration_list (#set! role type)) @subtree)
 (union_specifier (field_declaration_list (#set! role type)) @subtree)
 (enum_specifier (enumerator_list (#set! role type)) @subtree)
